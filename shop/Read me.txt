@@ -1,0 +1,22 @@
+This is cartoon botchermarket Polygonal (1 objects)
+
+Models:
+
+Botcher- Polygons: 3494
+Create in Blender 3d v 2.83.4
+
+File formats:
+
+Blender 3d v 3.1.2
+OBJ; MTL
+Fbx
+Gltf
+The preview images were rendered in Blender 3d (Cycles; 1024 Samples)
+
+Materials: 8
+
+Vertices: 2401; Polygons: 3494
+
+Created by Tykryk
+
+Thank you:)
