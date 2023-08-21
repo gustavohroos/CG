@@ -8,22 +8,19 @@ For more info see https://webgl2fundamentals.org/webgl/lessons/webgl-less-code-m
 <script src="https://webgl2fundamentals.org/webgl/resources/m4.js"></script>
 <script src="https://webgl2fundamentals.org/webgl/resources/flattened-primitives.js"></script>
 <script src="https://webgl2fundamentals.org/webgl/resources/chroma.min.js"></script>
-<script type="module" src="./script.js"></script>
 
 <link rel="stylesheet" href="./style.css">
 <body>
     <div id="content-wrapper">
-        <button id="toggleMenuButton">Toggle Menu</button>
+        <button id="show-menu-button">Show/Hide Menu</button>
         <div id="buttons">
-            <input type="number" id="animation-time" placeholder="Animation time (s)">
+            <input type="number" id="animation-time" placeholder="Animation time (s)" value="10" min="1">
             <button id="startButton">Start</button>
-            <button id="stopButton">Stop</button>
             <button id="resetButton">Reset</button>
             <span id="animation-percentage">0%</span>
             <input type="range" id="animation-step-slider" min="0" max="100" value="0">
-            <span id="radius-value">Radius: 50</span>
-            <input type="range" id="radius-value-slider" min="10" max="100" value="50">
         </div>
     </div>
-    <script src="menu.js"></script>
 </body>
+<script type="module" src="main.js"></script>
+

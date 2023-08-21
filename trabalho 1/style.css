@@ -27,7 +27,7 @@ canvas {
 }
 
 #buttons.visible {
-  transform: translateY(0); /* Show the menu by moving it back to its original position */
+  transform: translateY(0); /*Show the menu by moving it back to its original position*/
 }
 
 #animation-time {
@@ -43,10 +43,10 @@ canvas {
   position: absolute;
 }
 
-#toggleMenuButton {
+#show-menu-button {
   position: inherit;
   bottom: 0;
-  left: -15%;
+  left: -50%;
   z-index: 1; /* Ensure the button stays above the menu */
 }
 
