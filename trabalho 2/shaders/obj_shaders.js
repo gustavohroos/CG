@@ -1,6 +1,6 @@
 "use strict";
 
-const vertexShader = `#version 300 es
+const objVS = `#version 300 es
   in vec4 a_position;
   in vec3 a_normal;
   in vec3 a_tangent;
@@ -32,7 +32,7 @@ const vertexShader = `#version 300 es
   }
   `;
 
-  const fragmentShader = `#version 300 es
+  const objFS = `#version 300 es
   precision highp float;
 
   in vec3 v_normal;
@@ -85,4 +85,4 @@ const vertexShader = `#version 300 es
   }
   `;
 
-export { vertexShader, fragmentShader };
+export { objFS, objVS };
