@@ -187,6 +187,7 @@ function parseMTL(text) {
     Ni(parts)       { material.opticalDensity = parseFloat(parts[0]); },
     d(parts)        { material.opacity        = parseFloat(parts[0]); },
     illum(parts)    { material.illum          = parseInt(parts[0]); },
+    Tf(parts)       { material.transmissionFilter = parts.map(parseFloat); },
   };
 
   const keywordRE = /(\w*)(?: )*(.*)/;

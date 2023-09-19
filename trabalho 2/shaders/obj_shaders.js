@@ -1,88 +1,102 @@
 "use strict";
 
+// Vertex Shader
 const objVS = `#version 300 es
-  in vec4 a_position;
-  in vec3 a_normal;
-  in vec3 a_tangent;
-  in vec2 a_texcoord;
-  in vec4 a_color;
 
+  in vec4 a_position;
+  in vec2 a_texcoord;
+  
+  uniform mat4 u_world;
   uniform mat4 u_projection;
   uniform mat4 u_view;
-  uniform mat4 u_world;
   uniform vec3 u_viewWorldPosition;
-
-  out vec3 v_normal;
-  out vec3 v_tangent;
-  out vec3 v_surfaceToView;
+  
+  uniform vec3 u_lightWorldPosition;
+  uniform float u_ballsPositions[15];
+  uniform float u_ballsColors[15];
+  
   out vec2 v_texcoord;
-  out vec4 v_color;
+  out vec3 v_surfaceToView;
+  out vec3 v_worldPosition;
+  out vec3 v_surfaceToLight[5];
+  out vec3 v_ballsColors[5]; 
 
   void main() {
+
     vec4 worldPosition = u_world * a_position;
-    gl_Position = u_projection * u_view * worldPosition;
-    v_surfaceToView = u_viewWorldPosition - worldPosition.xyz;
+    gl_Position =  u_projection * u_view * worldPosition;
 
-    mat3 normalMat = mat3(u_world);
-    v_normal = normalize(normalMat * a_normal);
-    v_tangent = normalize(normalMat * a_tangent);
-
+    vec3 surfaceWorldPosition = (u_world * worldPosition).xyz;
+    
+    // montando o array de vetores de superficie para luz e de cores das bolas
+    int i, j;
+    for (i = 0, j = 0; i < 15; i+=3, j++) {
+      v_surfaceToLight[j] = vec3(u_ballsPositions[i] - surfaceWorldPosition.x, u_ballsPositions[i + 1] - surfaceWorldPosition.y, u_ballsPositions[i + 2] - surfaceWorldPosition.z);
+      v_ballsColors[j] = vec3(u_ballsColors[i], u_ballsColors[i + 1], u_ballsColors[i + 2]);
+    }
+    
+    v_surfaceToView = u_viewWorldPosition - surfaceWorldPosition;
+    v_worldPosition = surfaceWorldPosition;
     v_texcoord = a_texcoord;
-    v_color = a_color;
+    
   }
-  `;
+`;
 
-  const objFS = `#version 300 es
-  precision highp float;
+// Fragment Shader
+const objFS = `#version 300 es
+precision highp float;
 
-  in vec3 v_normal;
-  in vec3 v_tangent;
-  in vec3 v_surfaceToView;
-  in vec2 v_texcoord;
-  in vec4 v_color;
+in vec3 v_surfaceToView;
+in vec3 v_worldPosition;
+in vec2 v_texcoord;
+in vec3 v_surfaceToLight[5];
+in vec3 v_ballsColors[5];
 
-  uniform vec3 diffuse;
-  uniform sampler2D diffuseMap;
-  uniform vec3 ambient;
-  uniform vec3 emissive;
-  uniform vec3 specular;
-  uniform sampler2D specularMap;
-  uniform float shininess;
-  uniform sampler2D normalMap;
-  uniform float opacity;
-  uniform vec3 u_lightDirection;
-  uniform vec3 u_ambientLight;
+uniform vec3 u_lightDirection;
+uniform float u_ambientLightIntensity;
+uniform vec3 u_ambientLightColor;
+uniform vec3 u_color;
 
-  out vec4 outColor;
+uniform float u_kc;
+uniform float u_kl;
+uniform float u_kq;
+uniform float u_specular;
 
-  void main () {
-    vec3 normal = normalize(v_normal) * ( float( gl_FrontFacing ) * 2.0 - 1.0 );
-    vec3 tangent = normalize(v_tangent) * ( float( gl_FrontFacing ) * 2.0 - 1.0 );
-    vec3 bitangent = normalize(cross(normal, tangent));
+out vec4 outColor;
 
-    mat3 tbn = mat3(tangent, bitangent, normal);
-    normal = texture(normalMap, v_texcoord).rgb * 2. - 1.;
-    normal = normalize(tbn * normal);
+void main() {
+    // Calculating the normal
+    vec3 dx = dFdx(v_worldPosition);
+    vec3 dy = dFdy(v_worldPosition);
+    vec3 normal = normalize(cross(dx, dy));
 
-    vec3 surfaceToViewDirection = normalize(v_surfaceToView);
-    vec3 halfVector = normalize(u_lightDirection + surfaceToViewDirection);
+    // Calculating the color
+    // vec3 color = vec3(0.8, 0.8, 0.8); // white
+    vec3 color = u_color;
 
-    float fakeLight = dot(u_lightDirection, normal) * .5 + .5;
-    float specularLight = clamp(dot(normal, halfVector), 0.0, 1.0);
-    vec4 specularMapColor = texture(specularMap, v_texcoord);
-    vec3 effectiveSpecular = specular * specularMapColor.rgb;
+    vec3 ambient = u_ambientLightIntensity * u_ambientLightColor;
+    vec3 diffuse = vec3(max(dot(normal, u_lightDirection), 0.0)); // Initialize diffuse as a vec3
+    vec3 lightColorAccumulation = vec3(0.0);
 
-    vec4 diffuseMapColor = texture(diffuseMap, v_texcoord);
-    vec3 effectiveDiffuse = diffuse * diffuseMapColor.rgb * v_color.rgb;
-    float effectiveOpacity = opacity * diffuseMapColor.a * v_color.a;
+    for (int i = 0; i < 5; i += 1) {
+        vec3 surfaceToLight = v_surfaceToLight[i];
+        vec3 lightColor = v_ballsColors[i];
 
-    outColor = vec4(
-        emissive +
-        ambient * u_ambientLight +
-        effectiveDiffuse * fakeLight +
-        effectiveSpecular * pow(specularLight, shininess),
-        effectiveOpacity);
-  }
-  `;
+        float distance = length(surfaceToLight);
+        vec3 pointLightDirection = normalize(surfaceToLight);
+        float attenuation = 1.0 / (u_kc + u_kl * distance + u_kq * distance * distance);
+        float pointDiffuse = max(dot(normal, pointLightDirection), 0.0);
 
-export { objFS, objVS };
+        // Accumulate diffuse as a vec3
+        diffuse += lightColor * pointDiffuse * attenuation;
+    }
+
+    // Combine ambient, diffuse, and specular lighting as vec3
+    vec3 finalLight = ambient + diffuse + u_specular;
+
+    outColor = vec4(color * finalLight, 1);
+}
+
+`;
+
+export { objVS, objFS };

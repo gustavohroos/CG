@@ -11,74 +11,11 @@ canvas {
   display: block;
 }
 
-
-#buttons {
-  bottom: 0;
-  padding: 0.5em;
-  background: rgba(0, 0, 0, 0.5);
-  color: white;
-  font-family: monospace;
-  font-size: 1em;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  transition: transform 0.3s ease;
-  transform: translateY(100%);
-}
-
-#buttons.visible {
-  transform: translateY(0); /*Show the menu by moving it back to its original position*/
-}
-
-#animation-time {
-  flex: 1;
-  padding: 0.5em;
-  font-size: 1em;
-}
-
-#content-wrapper {
-  transform: translateX(-50%);
-  left: 50%;
-  bottom: 0;
+#remaining-birds-container {
   position: absolute;
-}
-
-#show-menu-button {
-  position: inherit;
-  bottom: 0;
-  left: -50%;
-  z-index: 1; /* Ensure the button stays above the menu */
-}
-
-button {
-  display: inline-block;
-  margin: 0.2em;
-  padding: 0.5em 1em;
-  background-color: #007bff;
-  border: none;
-  color: white;
-  font-size: 1em;
-  cursor: pointer;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(255, 255, 255, 0.7);
+  padding: 5px 10px;
   border-radius: 5px;
 }
-
-button:hover {
-  background-color: #0056b3;
-  cursor: pointer;
-}
-
-#animation-percentage, #radius-value {
-  color: #fff;
-  background-color: #007bff;
-  font-size: 1.2em;
-  border-radius: 5px;
-  padding: 0.5em;
-  min-width: 4em;
-  text-align: center;
-  display: inline-block;
-  vertical-align: middle;
-  line-height: 1;
-  white-space: nowrap;
-  margin-left: 0.5em;
-}
-

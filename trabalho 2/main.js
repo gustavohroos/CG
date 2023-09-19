@@ -1,22 +1,8 @@
 import { loadObject } from './parsers.js';
-
 import { terrainFS, terrainVS } from './shaders/terrain_shaders.js';
 import { ballFS, ballVS } from './shaders/ball_shaders.js';
 import { objFS, objVS } from './shaders/obj_shaders.js';
-
-const audioFiles = [
-    'data/audios/1.mp3',
-    'data/audios/2.mp3',
-    'data/audios/3.mp3',
-    // 'data/audios/4.mp3',
-    'data/audios/5.mp3',
-    'data/audios/6.mp3',
-    // 'data/audios/7.mp3',
-    // 'data/audios/8.mp3',
-    // 'data/audios/9.mp3',
-    // 'data/audios/10.mp3',
-    // 'data/audios/11.mp3',
-];
+import { boxFS, boxVS } from './shaders/box_shaders.js';
 
 const audioContext = new (window.AudioContext)();
 
@@ -52,13 +38,12 @@ function degToRad(d) {
 }
 
 function lemniscateOfBernoulli(t) {
-    const a = 100;
-    const b = 100;
+    const a = 1000;
+    const b = 1000;
     const x = a * Math.sqrt(2) * Math.cos(t) / (Math.sin(t) ** 2 + 1);
     const z = b * Math.sqrt(2) * Math.cos(t) * Math.sin(t) / (Math.sin(t) ** 2 + 1);
-    return [x, 1000, z];
+    return [x, 300, z];
 }
-
 
 async function playAudioFile(audioFile, volume = 1.0) {
     try {
@@ -90,9 +75,10 @@ function playRandomAudio() {
     return false;
 }
 
-
-
-
+function updateRemainingBirdsCount(length) {
+    const remainingBirdsElement = document.getElementById('remaining-birds-count');
+    remainingBirdsElement.textContent = length;
+}
 
 async function main() {
     // Get A WebGL context
@@ -107,15 +93,13 @@ async function main() {
     // normal with a_normal etc..
     twgl.setAttributePrefix("a_");
 
-    
     const v3 = twgl.v3;
+    
     // setup GLSL program
-
     const terrainProgramInfo = twgl.createProgramInfo(gl, [terrainVS, terrainFS]);
     const ballProgramInfo = twgl.createProgramInfo(gl, [ballVS, ballFS]);
     const birdProgramInfo = twgl.createProgramInfo(gl, [objVS, objFS]);
-
-    
+    const boxProgramInfo = twgl.createProgramInfo(gl, [boxVS, boxFS]);
 
     const height = 300;
     const numCurves = 4;
@@ -125,27 +109,25 @@ async function main() {
                 (t) => bezier(p6, p7, p8, p9, t, 2),
                 (t) => bezier(p9, p10, p11, p12, t, 3)];
 
-
-    let p0 = [-1.17, height, 19];
-    let p1 = [-3.90, height, 11.69];
-    let p2 = [-2.11, height, 7.33];
-    let p3 = [2.15, height, 7.08];
-    let p4 = [4.28, height, 6.95];
-    let p5 = [5.97, height, 7.91];
-    let p6 = [7.35, height, -0.25];
-    let p7 = [8.05, height, -4.34];
-    let p8 = [8.32, height, -8.66];
-    let p9 = [-7.48, height, -12.63];
-    let p10 = [-15.39, height, -14.61];
-    let p11 = [-23.37, height, -15.51];
-    let p12 = [-5.78, height, -2.04];
+    let p0 = [1257, height, -1716];
+    let p1 = [1024, height, 914];
+    let p2 = [-740, height, -1217];
+    let p3 = [-828, height, 349];
+    let p4 = [-872, height, 1132];
+    let p5 = [-471, height, 2371];
+    let p6 = [-102, height, 193];
+    let p7 = [82, height, -895];
+    let p8 = [148, height, -2184];
+    let p9 = [966, height, -200];
+    let p10 = [1376, height, 791];
+    let p11 = [1728, height, 2006];
+    let p12 = [136, height, 152];
 
     const terrainBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 4096, 4096, 200, 200);
     const planeBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 10000, 10000, 1, 1);
 
     let terrain_worldMatrix = m4.identity();
     let plane_worldMatrix = m4.identity();
-
     
     const heightMapImage = await loadImage('data/images/Terrain/Height Map PNG.png');
     const imageHandleContext = document.createElement('canvas').getContext("2d", { willReadFrequently: true });
@@ -188,7 +170,7 @@ async function main() {
     let controls = new function() {
         this.t = 0;
         this.t_birds = 0;
-        this.totalAnimationTime = 10;
+        this.totalAnimationTime = 50;
         this.lightx = -700;
         this.lighty = 100;
         this.lightz = -10;
@@ -204,9 +186,9 @@ async function main() {
         this.kc = 0.3;
         this.kl = 0.001;
         this.kq = 0.0001;
-        this.ballsSpeed = 500;
+        this.ballsSpeed = 650;
         this.ballsRadius = 10;
-        this.birdsSpeed = 100;
+        this.birdsSpeed = 300;
     }
 
     let currentAnimationTime = 0;
@@ -214,34 +196,41 @@ async function main() {
     let gui = new dat.GUI();
     gui.add(controls, 't', 0, numCurves).listen();
     
-    let controltotalAnimationTime = gui.add(controls, 'totalAnimationTime', 1, 100);
+    let controltotalAnimationTime = gui.add(controls, 'totalAnimationTime', 1, 100).name('animation time');
     controltotalAnimationTime.onChange(function(value) {
         running = false;
         currentAnimationTime = 0;
         controls.t = 0;
     });
+
     controltotalAnimationTime.domElement.id = "totalAnimationTime";
     let running = false;
     let runningDay = false;
     let buttons = { play:function(){ running=true },
                     pause: function() { running=false; },
-                    reset: function() { running=false; controls.t = 0; currentAnimationTime = 0;},
+                    reset: function() { running=false; controls.t = 0; currentAnimationTime = 0; 
+                        controls.cameraX = oldPosition[0];
+                        controls.cameraY = oldPosition[1];
+                        controls.cameraZ = oldPosition[2];
+                        controls.target = oldTarget;},
                     lightconfig: function() { controls.lightx = 2, controls.lighty = -8, controls.lightz = -8;},
-                    run_day: function() { runningDay = !runningDay;},
-                    remove_balls: function() { balls = [];},
+                    runDay: function() { runningDay = !runningDay;},
+                    removeBalls: function() { balls = [];},
+                    addBird: function() { createBird();},
+                    removeBirds: function() { birds = [];},
     };
     gui.add(buttons,'play');
     gui.add(buttons,'pause');
     gui.add(buttons,'reset');
-    gui.add(buttons, 'lightconfig');
-    gui.add(controls, 'lightx', -1000, 1000);
-    gui.add(controls, 'lighty', -1000, 1000);
-    gui.add(controls, 'lightz', -1000, 1000);
-    gui.add(controls, 'cameraX', -1000, 1000);
-    gui.add(controls, 'cameraY', -200, 10000);
-    gui.add(controls, 'cameraZ', -1000, 1000);
-    gui.add(controls, 'cameraPanSpeed', 0, 3);
-    gui.add(buttons, 'run_day');
+    gui.add(controls, 'ballsSpeed', 100, 1000).name('balls speed');
+    gui.add(controls, 'lightx', -1000, 1000).name('light x').listen();
+    gui.add(controls, 'lighty', -1000, 1000).name('light y').listen();
+    gui.add(controls, 'lightz', -1000, 1000).name('light z').listen();
+    gui.add(controls, 'cameraX', -1000, 1000).name('camera x').listen();
+    gui.add(controls, 'cameraY', -200, 5000).name('camera y').listen();
+    gui.add(controls, 'cameraZ', -1000, 1000).name('camera z').listen();
+    gui.add(controls, 'cameraPanSpeed', 0, 3).name('camera pan speed');
+    gui.add(buttons, 'runDay').name('run 24h cycle of light');
     let onChangeRunningDay = gui.add(controls, 'hour', 0, 24).listen();
     onChangeRunningDay.onChange(function(value) {
         const angle = degToRad((360 * value / 24) + 180);
@@ -249,13 +238,14 @@ async function main() {
         controls.lighty = Math.cos(angle) * 1000;
         console.log(controls.lightx, controls.lighty);
     });
-    gui.add(buttons, 'remove_balls');
+    gui.add(buttons, 'removeBalls').name('remove all balls');
+    gui.add(buttons, 'addBird').name('add 1 bird');
+    gui.add(buttons, 'removeBirds').name('remove all birds');
 
 
     canvas.addEventListener('mousemove', onMouseMove, false);
     canvas.addEventListener('mousedown',onMouseDown, false);
     canvas.addEventListener('mouseup', onMouseUp, false);
-    // canvas.addEventListener('wheel', onMouseWheel, false);
     document.addEventListener('keydown', onKeyDown, false);
 
     let isDragging = false;
@@ -268,7 +258,7 @@ async function main() {
     }
     
     function onMouseMove(event) {
-        if (!isDragging) return;
+        if (!isDragging && !running) return;
         
         const deltaX = event.clientX - lastMouseX;
         const deltaY = event.clientY - lastMouseY;
@@ -280,6 +270,7 @@ async function main() {
         // Update the camera's target position
         controls.target[0] += deltaX * controls.cameraPanSpeed;
         controls.target[1] -= deltaY * controls.cameraPanSpeed;
+        controls.target[2]
         
         lastMouseX = event.clientX;
         lastMouseY = event.clientY;
@@ -289,16 +280,13 @@ async function main() {
         isDragging = false;
     }
 
-    function onKeyDown(event) {
-        console.log(event.keyCode);
-        
+    function onKeyDown(event) {        
         if (event.keyCode == 32) {
             onSpaceKeyPressed(event);
         }
-
     }
-    let balls = []; // Array para armazenar informações das bolas
 
+    let balls = []; // Array para armazenar informações das bolas
     let cameraMatrix = m4.lookAt([0, 0, 0], [0, 0, 0], [0, 1, 0]); 
     let cameraPosition = [controls.cameraX, controls.cameraY, controls.cameraZ];
 
@@ -318,9 +306,9 @@ async function main() {
         ];
         let index = Math.floor(Math.random() * choices.length);
         return choices[index];
-      }
+    }
 
-    function createBall(position, velocity, timeToReach) {
+    function createBall(position, velocity) {
         const ball = twgl.primitives.createSphereBufferInfo(gl, controls.ballsRadius, 64, 64);
         const ballWorldMatrix = m4.translation(position[0], position[1], position[2]);
         const color = chooseColor();
@@ -328,7 +316,6 @@ async function main() {
             ballInfo: ball,
             worldMatrix: ballWorldMatrix,
             velocity: velocity,
-            timeToReach: timeToReach,
             color: color,
             lightColor: color,
             hitted: 0,
@@ -339,23 +326,25 @@ async function main() {
 
     function launchBall() {
         const startPosition = cameraPosition;
-        const targetPosition = [Math.random() * 1000 - 500, 0, Math.random() * 1000 - 500];
-        
-        // Calculate the direction from the current position to the target position
-        const direction = m4.subtractVectors(targetPosition, startPosition);
-        
-        // Calculate the velocity required to reach the target position in a certain time frame
-        const speed = controls.ballsSpeed; // Adjust the speed as needed
-        const timeToReach = m4.length(direction) / speed;
-        const velocity = m4.normalize(direction);
+        let velocity;
 
-        const isPlaying = playRandomAudio();
+        if (running) {
+            const direction = m4.subtractVectors(controls.target, startPosition);
+            velocity = m4.normalize(direction);
+        } else {
+            const targetPosition = [Math.random() * 1000 - 500, 0, Math.random() * 1000 - 500];
+            const direction = m4.subtractVectors(targetPosition, startPosition);
+            velocity = m4.normalize(direction);
+        }
+
+        const isPlaying = playAudioFile('data/audios/shot.mp3', 0.2);
         if (isPlaying) {
             if (balls.length >= 5){
                 balls.splice(0, 1);
             }
-            createBall(startPosition, velocity, timeToReach);
+            createBall(startPosition, velocity);
         }
+        playAudioFile('data/audios/reload.mp3', 0.4);
     }
 
     let ballsLastTime = 0;
@@ -366,33 +355,30 @@ async function main() {
         for (let i = balls.length - 1; i >= 0; i--) {
             const ballData = balls[i];
             if (ballData.worldMatrix[13] == -100) continue;
-            if (ballData.timeToReach > 0) {
-                ballData.velocity = m4.normalize(ballData.velocity); 
-                const translation = mulScalar(ballData.velocity, controls.ballsSpeed * deltaTime);
-                ballData.worldMatrix = m4.translate(ballData.worldMatrix, translation[0], translation[1], translation[2]);
-                ballData.timeToReach -= deltaTime;
+            ballData.velocity = m4.normalize(ballData.velocity); 
+            const translation = mulScalar(ballData.velocity, controls.ballsSpeed * deltaTime);
+            ballData.worldMatrix = m4.translate(ballData.worldMatrix, translation[0], translation[1], translation[2]);
 
-                const ballPosition = [ballData.worldMatrix[12], ballData.worldMatrix[13], ballData.worldMatrix[14]];
-                const terrainHeight = getTerrainHeightAt(ballPosition[0], ballPosition[2]);
+            const ballPosition = [ballData.worldMatrix[12], ballData.worldMatrix[13], ballData.worldMatrix[14]];
+            const terrainHeight = getTerrainHeightAt(ballPosition[0], ballPosition[2]);
 
-                if (ballPosition[1] <= terrainHeight * 1000 + controls.ballsRadius) {
-                    const distance = m4.length(m4.subtractVectors(cameraPosition, ballPosition));
-                    const volume = 1 / (distance) * 400; 
-                    const clampedVolume = Math.min(1, Math.max(0, volume));
-                    
-                    playAudioFile('data/audios/boing.mp3', clampedVolume);
-                    ballData.hitted += 1;
-                    ballData.velocity = [Math.random() * 2 - 1,
-                                         -ballData.velocity[1], 
-                                         Math.random() * 2 - 1]; 
-                    ballData.timeToReach = Infinity;
-                    ballData.color = chooseColor();
-                    ballData.lightColor = ballData.color;
-                }
-                if (ballData.hitted > 10) {      
-                    ballData.worldMatrix[13] = -100;
-                }
+            if (ballPosition[1] <= terrainHeight * 1000 + controls.ballsRadius) {
+                const distance = m4.length(m4.subtractVectors(cameraPosition, ballPosition));
+                const volume = 1 / (distance) * 400; 
+                const clampedVolume = Math.min(1, Math.max(0, volume));
+                
+                playAudioFile('data/audios/boing.mp3', clampedVolume);
+                ballData.hitted += 1;
+                ballData.velocity = [Math.random() * 2 - 1,
+                                        -ballData.velocity[1], 
+                                        Math.random() * 2 - 1]; 
+                ballData.color = chooseColor();
+                ballData.lightColor = ballData.color;
             }
+            if (ballData.hitted > 10) {      
+                ballData.worldMatrix[13] = -100;
+            }
+            
         }
     }
 
@@ -425,9 +411,6 @@ async function main() {
         }
     }
 
-    
-    
-
     function drawTerrain(sharedUniforms, worldMatrix, buffer = terrainBufferInfo) {
         gl.useProgram(terrainProgramInfo.program);
         twgl.setBuffersAndAttributes(gl, terrainProgramInfo, buffer);
@@ -438,19 +421,119 @@ async function main() {
         });
         twgl.drawBufferInfo(gl, buffer);
     }
+    
+    let birds = [];
+    async function createBird(position = null, isStatic = false) {
+        let center;
+        position ? center = position : center = [Math.random() * 5000 - 2500, 300, Math.random() * 5000 - 2500];
+        let bird = await loadObject('models/bird/bird.obj', gl, birdProgramInfo);
+        const worldMatrix = m4.translation(center[0], center[1], center[2]);
+        const color = chooseColor();
+
+        bird.worldMatrix = worldMatrix;
+        bird.color = color;
+        bird.center = center;
+        bird.isStatic = isStatic;
+        bird.box = createFrameBox(bird);
+        birds.push(bird);
+        return bird;
+    }
 
     let birdsLastTime = 0;
-    let birds = [];
 
-    // createBird();
+    function updateBirds(time) {
+        const deltaTime = time - birdsLastTime;
+        birdsLastTime = time;
+        for (let i = birds.length - 1; i >= 0; i--) {
+            const birdData = birds[i];
+            if (birdData.isStatic) continue;
+            birdData.worldMatrix = m4.translate(birdData.worldMatrix, 0, 0, controls.birdsSpeed * deltaTime);
+            if (birdData.worldMatrix[14] > 4096) {
+                birdData.worldMatrix[14] = -4096;
+            }
+            updateBox(birdData);
+        }
+    }
 
-    var bird = await loadObject('models/bird/bird.obj', gl, birdProgramInfo);
-    const { bufferInfo, vao, material } = bird[1];
-    console.log(bufferInfo, vao, material)
+    let boxes = [];
 
-    createBall([2048, 100, 2048], [0, 0, 0], 1);
-    createBall([-2048, 100, -2048], [0, 0, 0], 1);
+    function createFrameBox(bird){
+        gl.useProgram(boxProgramInfo.program);
+        const birdWorldMatrix = bird.worldMatrix;
+        const birdBox = twgl.primitives.createCubeBufferInfo(gl, 100);
+        const birdBoxWorldMatrix = m4.translation(birdWorldMatrix[12], birdWorldMatrix[13], birdWorldMatrix[14]);
+        const birdBoxData = {
+            birdBoxInfo: birdBox,
+            worldMatrix: birdBoxWorldMatrix,
+            width: 100,
+        };
+        boxes.push(birdBoxData);
+        return birdBoxData;
+    }
 
+    function drawBoxes(sharedUniforms) {
+        gl.useProgram(boxProgramInfo.program);
+        for (let i = boxes.length - 1; i >= 0; i--) {
+            const birdBoxData = boxes[i];
+            twgl.setBuffersAndAttributes(gl, boxProgramInfo, birdBoxData.birdBoxInfo);
+            twgl.setUniforms(boxProgramInfo, {
+                u_world: birdBoxData.worldMatrix,
+                u_color: [1, 0, 0, 0.6],
+            });
+            twgl.setUniforms(boxProgramInfo, sharedUniforms);
+            twgl.drawBufferInfo(gl, birdBoxData.birdBoxInfo);
+        }
+    }
+
+    function updateBox(birdData) {
+        const birdWorldMatrix = birdData.worldMatrix;
+        birdData.box.worldMatrix = m4.translation(birdWorldMatrix[12], birdWorldMatrix[13], birdWorldMatrix[14]);
+    }
+
+    function drawBirds(sharedUniforms) {
+        for (let i = birds.length - 1; i >= 0; i--) {
+            const birdData = birds[i];
+            gl.useProgram(birdProgramInfo.program);
+            for ( const { bufferInfo, vao, material } of birdData) {
+                gl.bindVertexArray(vao);
+                twgl.setUniforms(birdProgramInfo, {
+                    u_world: birdData.worldMatrix,
+                    u_color: birdData.color,
+                }, material);
+                twgl.setUniforms(birdProgramInfo, sharedUniforms);
+                twgl.drawBufferInfo(gl, bufferInfo);
+            }
+        }
+    }
+
+    function checkCollisions() {
+        for (let i = balls.length - 1; i >= 0; i--) {
+            const ballPosition = [balls[i].worldMatrix[12], balls[i].worldMatrix[13], balls[i].worldMatrix[14]];
+    
+            for (let j = birds.length - 1; j >= 0; j--) {
+                const birdBox = birds[j].box;
+                const birdBoxPosition = [birdBox.worldMatrix[12], birdBox.worldMatrix[13], birdBox.worldMatrix[14]];
+    
+                // Check for AABB collision
+                if (
+                    ballPosition[0] - controls.ballsRadius < birdBoxPosition[0] + birdBox.width / 2 &&
+                    ballPosition[0] + controls.ballsRadius > birdBoxPosition[0] - birdBox.width / 2 &&
+                    ballPosition[1] - controls.ballsRadius < birdBoxPosition[1] + birdBox.width / 2 &&
+                    ballPosition[1] + controls.ballsRadius > birdBoxPosition[1] - birdBox.width / 2 &&
+                    ballPosition[2] - controls.ballsRadius < birdBoxPosition[2] + birdBox.width / 2 &&
+                    ballPosition[2] + controls.ballsRadius > birdBoxPosition[2] - birdBox.width / 2
+                ) {
+                    birds.splice(j, 1);
+                    boxes.splice(j, 1);
+                }
+            }
+        }
+    }
+    
+    for (let i = 0; i < 10; i++) await createBird();
+
+    let oldPosition = null;
+    let oldTarget = null;
 
     requestAnimationFrame(render);
 
@@ -470,18 +553,22 @@ async function main() {
             if (controls.hour > 24) {
                 controls.hour = 0;
             }
-
             const angle = degToRad(360 * controls.hour / 24 + 180);
             controls.lightx = Math.sin(angle) * 1000;
             controls.lighty = Math.cos(angle) * 1000;
         }
         
-        
         if(!running) {
             controls.t = 0;
             currentAnimationTime = 0;
             cameraPosition = [controls.cameraX, controls.cameraY, controls.cameraZ];
+            oldPosition = null;
+            oldTarget = null;
         } else {
+            if (oldPosition == null) {
+                oldPosition = cameraPosition; 
+                oldTarget = controls.target;
+            }
             currentAnimationTime += deltaTime;
             if (currentAnimationTime > controls.totalAnimationTime) {
                 currentAnimationTime = 0;
@@ -490,9 +577,11 @@ async function main() {
             if (controls.t > numCurves) controls.t = numCurves;
             cameraPosition = curves[curveNum](controls.t);
             controls.target = curves[curveNum](controls.t + 0.01);
+            controls.cameraX = cameraPosition[0];
+            controls.cameraY = cameraPosition[1];
+            controls.cameraZ = cameraPosition[2];
         }
 
-        
         let up = [0, 1, 0];
         cameraMatrix = m4.lookAt(cameraPosition, controls.target, up);
         
@@ -506,7 +595,7 @@ async function main() {
         let fieldOfViewRadians = degToRad(60);
         let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
         const zNear = 0.1;
-        const zFar = 4000;
+        const zFar = 10000;
         let projection = m4.perspective(fieldOfViewRadians, aspect, zNear, zFar);        
         
         let view = m4.inverse(cameraMatrix);
@@ -521,10 +610,9 @@ async function main() {
 
         // preenche o array de bolas para sempre ter 5 bolas
         while (balls.length < 5) {
-            createBall([0,-100,0], [0,0,0], 1);
+            createBall([0,-100,0], [0,0,0]);
         }
-
-
+       
         let ballsPositions = [];
         let ballsColors = [];
         for (let ball of balls) {
@@ -538,18 +626,14 @@ async function main() {
             
         const sharedUniforms = {
             u_lightDirection: m4.normalize([controls.lightx, controls.lighty, controls.lightz]),
-            
             u_ballsPositions: ballsPositions,
             u_ballsColors: ballsColors,
-            
-            u_ambientLightIntensity: 0.2,
+            u_ambientLightIntensity: 0.1,
             u_ambientLightColor: [1., 1., 1.],
-            
             u_view: view,
             u_projection: projection,
             u_viewWorldPosition: cameraPosition,
             u_displacementScale: 1000.,
-            
             u_specular: 0.3,
             u_kc: controls.kc,
             u_kl: controls.kl,
@@ -559,35 +643,14 @@ async function main() {
         drawTerrain(sharedUniforms, plane_worldMatrix, planeBufferInfo);
         drawTerrain(sharedUniforms, terrain_worldMatrix);
 
-        // updateBirds(time);
-        // drawBirds(sharedUniforms, time);
-
-        let u_world_bird = m4.translation(0, 600, 0);
-
-        // make the birds fly in a lemniscate of bernoulli
-        const birdPosition = lemniscateOfBernoulli(time);
-        // const birdDirection = m4.subtractVectors(birdTarget, birdPosition);
-        // const birdSpeed = controls.birdsSpeed;
-        // const birdVelocity = m4.normalize(birdDirection);
-        u_world_bird = m4.translate(u_world_bird, birdPosition[0], birdPosition[1], birdPosition[2]);
-
-
-
-
-        for (const { bufferInfo, vao, material } of bird) {
-            // console.log(bufferInfo, vao, material)
-            gl.bindVertexArray(vao);
-            twgl.setUniforms(birdProgramInfo, {
-                u_world: u_world_bird,
-            }, material);
-            twgl.drawBufferInfo(gl, bufferInfo);
-        }
-
+        updateBirds(time);
         updateBalls(time); 
-
+        checkCollisions();
+        drawBirds(sharedUniforms, time);
+        // drawBoxes(sharedUniforms); 
         drawBalls(sharedUniforms);
-        
-        
+
+        updateRemainingBirdsCount(birds.length);       
         
         requestAnimationFrame(render);
         then = time;
@@ -602,6 +665,6 @@ function loadImage(url) {
       img.crossOrigin = 'anonymous';
       img.src = url;
     });
-  }
+}
 
 main();
