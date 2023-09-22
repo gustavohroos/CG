@@ -101,7 +101,7 @@ async function main() {
     const birdProgramInfo = twgl.createProgramInfo(gl, [objVS, objFS]);
     const boxProgramInfo = twgl.createProgramInfo(gl, [boxVS, boxFS]);
 
-    const height = 300;
+    const height = 450;
     const numCurves = 4;
     
     const curves = [(t) => bezier(p0, p1, p2, p3, t, 0),
@@ -123,43 +123,29 @@ async function main() {
     let p11 = [1728, height, 2006];
     let p12 = [136, height, 152];
 
-    const terrainBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 4096, 4096, 200, 200);
-    const planeBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 10000, 10000, 1, 1);
-
+    
     let terrain_worldMatrix = m4.identity();
     let plane_worldMatrix = m4.identity();
     
-    const heightMapImage = await loadImage('data/images/Terrain/Height Map PNG.png');
+    const heightMapImage = await loadImage('data/images/Rocky Land and Rivers/Height Map PNG.png');
     const imageHandleContext = document.createElement('canvas').getContext("2d", { willReadFrequently: true });
     imageHandleContext.canvas.width = heightMapImage.width;
     imageHandleContext.canvas.height = heightMapImage.height;
     imageHandleContext.drawImage(heightMapImage, 0, 0, heightMapImage.width, heightMapImage.height);
     const imgData = imageHandleContext.getImageData(0, 0, heightMapImage.width, heightMapImage.height);
+    
+    const terrainBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, heightMapImage.width, heightMapImage.height, 300, 300);
+    const planeBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 5000, 5000, 1, 1);
 
     // generate normals from height data
-    const displacementScale = 1000;
-    const data = new Uint8Array(imgData.data.length);
-    for (let z = 0; z < imgData.height; ++z) {
-        for (let x = 0; x < imgData.width; ++x) {
-            const off = (z * heightMapImage.width + x) * 4;
-            const h0 = imgData.data[off];
-            const h1 = imgData.data[off + 40] || 0;  // being lazy at edge
-            const h2 = imgData.data[off + imgData.width * 4] || 0; // being lazy at edge
-            const p0 = [x    , h0 * displacementScale / 255, z    ];
-            const p1 = [x + 1, h1 * displacementScale / 255, z    ];
-            const p2 = [x    , h2 * displacementScale / 255, z + 1];
-            const v0 = v3.normalize(v3.subtract(p1, p0));
-            const v1 = v3.normalize(v3.subtract(p2, p0));
-            const normal = v3.normalize(v3.cross(v0, v1));
-            data[off + 0] = (normal[0] * 0.5 + 0.5) * 255;
-            data[off + 1] = (normal[1] * 0.5 + 0.5) * 255;
-            data[off + 2] = (normal[2] * 0.5 + 0.5) * 255;
-            data[off + 3] = h0;
-        }
-    } 
+    const displacementScale = 400;
 
     const heightMapTexture = twgl.createTexture(gl, {
-        src: data,
+        src: 'data/images/Rocky Land and Rivers/Height Map PNG.png',
+    });
+
+    const textureMap = twgl.createTexture(gl, {
+        src: 'data/images/Rocky Land and Rivers/Diffuse.png',
         width: imgData.width,
         minMag: gl.LINEAR,
         wrap: gl.CLAMP_TO_EDGE,
@@ -176,19 +162,19 @@ async function main() {
         this.lightz = -10;
         this.cameraX = 0;
         this.cameraY = 500;
-        this.cameraZ = -1000;
+        this.cameraZ = -300;
         this.cameraPanSpeed = 1;
         this.cameraZoomSpeed = 0.1;
         this.cameraMinDistance = 100;
         this.cameraMaxDistance = 1000;
         this.target = [0, 0, 0];
         this.hour = 9;
-        this.kc = 0.3;
-        this.kl = 0.001;
-        this.kq = 0.0001;
-        this.ballsSpeed = 650;
-        this.ballsRadius = 10;
-        this.birdsSpeed = 300;
+        this.kc = 0.2;
+        this.kl = 0.0001;
+        this.kq = 0.00005;
+        this.ballsSpeed = 250;
+        this.ballsRadius = 2;
+        this.birdsSpeed = 100;
     }
 
     let currentAnimationTime = 0;
@@ -378,7 +364,6 @@ async function main() {
             if (ballData.hitted > 10) {      
                 ballData.worldMatrix[13] = -100;
             }
-            
         }
     }
 
@@ -411,13 +396,15 @@ async function main() {
         }
     }
 
-    function drawTerrain(sharedUniforms, worldMatrix, buffer = terrainBufferInfo) {
+    function drawTerrain(sharedUniforms, worldMatrix, buffer = terrainBufferInfo, height = 0) {
+        worldMatrix = m4.translate(worldMatrix, worldMatrix[12], height, worldMatrix[14]);
         gl.useProgram(terrainProgramInfo.program);
         twgl.setBuffersAndAttributes(gl, terrainProgramInfo, buffer);
         twgl.setUniforms(terrainProgramInfo, sharedUniforms);
         twgl.setUniformsAndBindTextures(terrainProgramInfo, {
             u_world: worldMatrix,
             displacementMap: heightMapTexture,
+            textureMap: textureMap,
         });
         twgl.drawBufferInfo(gl, buffer);
     }
@@ -425,9 +412,10 @@ async function main() {
     let birds = [];
     async function createBird(position = null, isStatic = false) {
         let center;
-        position ? center = position : center = [Math.random() * 5000 - 2500, 300, Math.random() * 5000 - 2500];
+        position ? center = position : center = [Math.random() * 1000 - 500, height, Math.random() * 1000 - 500];
         let bird = await loadObject('models/bird/bird.obj', gl, birdProgramInfo);
-        const worldMatrix = m4.translation(center[0], center[1], center[2]);
+        let worldMatrix = m4.translation(center[0], center[1], center[2]);
+        worldMatrix = m4.scale(worldMatrix, 0.5, 0.5, 0.5);
         const color = chooseColor();
 
         bird.worldMatrix = worldMatrix;
@@ -448,8 +436,8 @@ async function main() {
             const birdData = birds[i];
             if (birdData.isStatic) continue;
             birdData.worldMatrix = m4.translate(birdData.worldMatrix, 0, 0, controls.birdsSpeed * deltaTime);
-            if (birdData.worldMatrix[14] > 4096) {
-                birdData.worldMatrix[14] = -4096;
+            if (birdData.worldMatrix[14] > 2000) {
+                birdData.worldMatrix[14] = -2000;
             }
             updateBox(birdData);
         }
@@ -523,6 +511,7 @@ async function main() {
                     ballPosition[2] - controls.ballsRadius < birdBoxPosition[2] + birdBox.width / 2 &&
                     ballPosition[2] + controls.ballsRadius > birdBoxPosition[2] - birdBox.width / 2
                 ) {
+                    playAudioFile('data/audios/9.mp3');
                     birds.splice(j, 1);
                     boxes.splice(j, 1);
                 }
@@ -530,7 +519,7 @@ async function main() {
         }
     }
     
-    for (let i = 0; i < 10; i++) await createBird();
+    for (let i = 0; i < 30; i++) await createBird();
 
     let oldPosition = null;
     let oldTarget = null;
@@ -604,8 +593,10 @@ async function main() {
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
+
+        let skyColor = getSkyColor(controls.hour);
         
-        gl.clearColor(0.43, 0.84, 0.87, 1);
+        gl.clearColor(skyColor[0], skyColor[1], skyColor[2], skyColor[3]);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // preenche o array de bolas para sempre ter 5 bolas
@@ -640,7 +631,7 @@ async function main() {
             u_kq: controls.kq,
         };
 
-        drawTerrain(sharedUniforms, plane_worldMatrix, planeBufferInfo);
+        drawTerrain(sharedUniforms, plane_worldMatrix, planeBufferInfo, -50);
         drawTerrain(sharedUniforms, terrain_worldMatrix);
 
         updateBirds(time);
@@ -665,6 +656,33 @@ function loadImage(url) {
       img.crossOrigin = 'anonymous';
       img.src = url;
     });
+}
+
+function getSkyColor(hour) {
+    const dawnColor = [0, 102, 204];   // Dawn (early morning)
+    const middayColor = [135, 206, 250]; // Midday (noon)
+    const duskColor = [255, 165, 0];    // Dusk (evening)
+  
+    let color;
+  
+    if (hour >= 0 && hour < 6) {
+      const t = hour / 6.0;
+      color = dawnColor.map((c1, i) => Math.round((1 - t) * c1 + t * middayColor[i]));
+    } else if (hour >= 6 && hour < 12) {
+      const t = (hour - 6) / 6.0;
+      color = dawnColor.map((c1, i) => Math.round((1 - t) * c1 + t * middayColor[i]));
+    } else if (hour >= 12 && hour < 18) {
+      const t = (hour - 12) / 6.0;
+      color = middayColor.map((c1, i) => Math.round((1 - t) * c1 + t * duskColor[i]));
+    } else {
+      const t = (hour - 18) / 6.0;
+      color = duskColor.map((c1, i) => Math.round((1 - t) * c1 + t * dawnColor[i]));
+    }
+  
+    color = color.map(c => c / 255.0);
+    const alpha = 1.0;
+
+    return [...color, alpha];
 }
 
 main();

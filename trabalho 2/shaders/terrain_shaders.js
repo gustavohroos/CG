@@ -24,7 +24,7 @@ const terrainVS = `#version 300 es
   out vec3 v_ballsColors[5]; 
 
   void main() {
-    float displacement = texture(displacementMap, a_texcoord).a * u_displacementScale;
+    float displacement = texture(displacementMap, a_texcoord).r * u_displacementScale;
     vec4 displaced_position = a_position + vec4(0, displacement, 0, 0);
 
     gl_Position =  u_projection * u_view * u_world * displaced_position;
@@ -60,6 +60,8 @@ in vec3 v_ballsColors[5];
 uniform vec3 u_lightDirection;
 uniform float u_ambientLightIntensity;
 uniform vec3 u_ambientLightColor;
+uniform sampler2D textureMap;
+uniform sampler2D displacementMap;
 
 uniform float u_kc;
 uniform float u_kl;
@@ -73,11 +75,14 @@ void main() {
     vec3 dx = dFdx(v_worldPosition);
     vec3 dy = dFdy(v_worldPosition);
     vec3 normal = normalize(cross(dx, dy));
+    // vec3 normal = texture(displacementMap, v_texcoord).rgb * 2.0 - 1.0;
 
     // Calculating the color
     // vec3 color = vec3(0.4, 0.5, 0.1); // green
     // vec3 color = vec3(0.5, 0.5, 0.5); // gray
-    vec3 color = vec3(0.4, 0.3, 0.1); // brown
+    // vec3 color = vec3(0.4, 0.3, 0.1); // brown
+
+    vec3 color = texture(textureMap, v_texcoord).rgb;
 
     vec3 ambient = u_ambientLightIntensity * u_ambientLightColor * color;
     vec3 diffuse = vec3(max(dot(normal, u_lightDirection), 0.0)); // Initialize diffuse as a vec3
