@@ -3,6 +3,7 @@ import { terrainFS, terrainVS } from './shaders/terrain_shaders.js';
 import { ballFS, ballVS } from './shaders/ball_shaders.js';
 import { objFS, objVS } from './shaders/obj_shaders.js';
 import { boxFS, boxVS } from './shaders/box_shaders.js';
+import { skyboxFS, skyboxVS } from './shaders/skybox_shaders.js';
 
 const audioContext = new (window.AudioContext)();
 
@@ -100,6 +101,7 @@ async function main() {
     const ballProgramInfo = twgl.createProgramInfo(gl, [ballVS, ballFS]);
     const birdProgramInfo = twgl.createProgramInfo(gl, [objVS, objFS]);
     const boxProgramInfo = twgl.createProgramInfo(gl, [boxVS, boxFS]);
+    const skyboxProgramInfo = twgl.createProgramInfo(gl, [skyboxVS, skyboxFS]);
 
     const height = 450;
     const numCurves = 4;
@@ -136,6 +138,7 @@ async function main() {
     
     const terrainBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, heightMapImage.width, heightMapImage.height, 300, 300);
     const planeBufferInfo = twgl.primitives.createPlaneBufferInfo(gl, 5000, 5000, 1, 1);
+    const quadBufferInfo = twgl.primitives.createXYQuadBufferInfo(gl); // for skybox
 
     // generate normals from height data
     const displacementScale = 400;
@@ -150,6 +153,19 @@ async function main() {
         minMag: gl.LINEAR,
         wrap: gl.CLAMP_TO_EDGE,
     });
+
+    const skyboxTexture = twgl.createTexture(gl, {
+        target: gl.TEXTURE_CUBE_MAP,
+        src: [
+          "data/images/skybox/Box_Right.bmp",
+          "data/images/skybox/Box_Left.bmp",
+          "data/images/skybox/Box_Top.bmp",
+          "data/images/skybox/Box_Bottom.bmp",
+          "data/images/skybox/Box_Front.bmp",
+          "data/images/skybox/Box_Back.bmp",
+        ],
+        min: gl.LINEAR_MIPMAP_LINEAR
+      });
 
     let then = 0;
 
@@ -641,7 +657,21 @@ async function main() {
         // drawBoxes(sharedUniforms); 
         drawBalls(sharedUniforms);
 
-        updateRemainingBirdsCount(birds.length);       
+        updateRemainingBirdsCount(birds.length); 
+        
+        let viewDirection = m4.copy(view);
+        viewDirection[12] = 0;
+        viewDirection[13] = 0;
+        viewDirection[14] = 0;
+        
+        gl.depthFunc(gl.LEQUAL);
+        gl.useProgram(skyboxProgramInfo.program);
+        twgl.setBuffersAndAttributes(gl, skyboxProgramInfo, quadBufferInfo);
+        twgl.setUniformsAndBindTextures(skyboxProgramInfo, {
+        u_viewDirectionProjectionInverse: m4.inverse(m4.multiply(projection, viewDirection)),
+        u_skybox: skyboxTexture,
+        });
+        twgl.drawBufferInfo(gl, quadBufferInfo);
         
         requestAnimationFrame(render);
         then = time;
